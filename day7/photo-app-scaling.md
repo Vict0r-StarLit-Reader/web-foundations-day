@@ -1,13 +1,13 @@
 # SnapShare Scaling Plan
 
 ## 1. Assumptions and Daily Active Users (DAU)
-* **Registered Users:** 10,000,000.
-* **Activity Rate:** 10% of registered users are active daily.
+* **Registered Users:** 10,000,000
+* **Activity Rate:** 10% of registered users are active daily
 * **Daily Active Users (DAU):** 10,000,000 × 0.10 = **1,000,000 users**
-* **User Actions:** Each active user uploads 1 photo per day and views 50 feed pages per day.
-* **File Sizes:** Average photo size is 2 MB; each thumbnail size is 50 KB.
-*
-* ---
+* **User Actions:** Each active user uploads 1 photo per day and views 50 feed pages per day
+* **File Sizes:** Average photo size is 2 MB; each thumbnail size is 50 KB
+
+---
 
 ## 2. Traffic and Storage Calculations
 
@@ -29,7 +29,7 @@
 
 ## 3. System Workload Type
 * **Classification:** **Read-Heavy**
-* **Design Implication:** Because users view 50 feed pages for every 1 photo they upload, the system experiences significantly more read operations (~2,893 reads/sec peak) than writes (~58 writes/sec peak). The architecture must prioritize caching, database read replicas, and CDNs to serve read traffic swiftly without bottlenecking the primary database.
+* **Design Implication:** Because users view 50 feed pages for every 1 photo they upload, the system experiences significantly more read operations (~2,893 reads/sec peak) than writes (~58 writes/sec peak). The architecture must prioritize an in-memory caching layer, database read replicas, and CDNs to serve read traffic swiftly without bottlenecking the database tier.
 
 ---
 
@@ -50,19 +50,18 @@
          ▼
 [ Load Balancer ] (Distributes incoming traffic)
          │
-         ├──► [ App Servers ] ──(Reads/Writes Metadata)──► [ Primary Database (Writes) ]
-         │         │                                             │
-         │         │ (Async Job)                           (Replication)
-         │         ▼                                             ▼
-         │    [ Message Queue ]                        [ Read Replicas (Reads) ]
-         │         │
-         │         ▼
+         ├──► [ App Servers ] ──(Reads/Writes Cache & Metadata)──► [ Redis In-Memory Cache ]
+         │         │                                                         │
+         │         │ (Async Job)                                      (Cache Misses)
+         │         ▼                                                         ▼
+         │    [ Message Queue ]                               [ Read Replicas (Reads) ]
+         │         │                                                         │
+         │         ▼                                            [ Primary Database (Writes) ]
          │    [ Worker Service ] (Resizes & generates thumbnails)
          │         │
-         └─────────┴───────────────────────────────────► [ Object Storage (Photos & Thumbnails) ]
+         └─────────┴───────────────────────────────────────────────────────► [ Object Storage (Photos & Thumbnails) ]
                    (Uploads processed media)
 ```
-
 ## 6. Component Explanations
 * **CDN:** Caches static photo assets and thumbnails geographically close to users to minimize latency and reduce origin server load.
 * **Load Balancer:** Distributes incoming user requests evenly across multiple application servers to ensure high availability and prevent overload.
@@ -82,14 +81,14 @@
 3. **Direct Upload to Object Storage:** The App Server streams the raw full-size photo (2 MB) directly into the distributed Object Storage bucket and receives a permanent public URL/key.
 4. **Metadata Persistence:** The App Server writes the photo metadata record (photo ID, storage URL, uploader user ID, caption, creation timestamp) into the Primary Database and invalidates stale user feed cache keys in Redis.
 5. **Enqueue Background Job:** The App Server pushes an asynchronous processing job containing the photo reference path to the Message Queue and immediately returns a `201 Created` success response to the client.
-6. **Async Worker Processing:** A background Worker Service pulls the job from the Message Queue, downloads the raw photo from Object Storage, generates the optimized 50 KB thumbnail, uploads the thumbnail back to Object Storage, and updates the photo record in the database with the thumbnail URL.
+6. **Async Worker Completion:** A background Worker Service pulls the job from the Message Queue, downloads the raw photo from Object Storage, processes and generates the optimized 50 KB thumbnail, uploads the generated thumbnail back to Object Storage, and updates the photo record in the primary database with the completed thumbnail URL.
 
 ---
 
 ## 8. Architectural Trade-Offs
-* **Trade-Off 1: Eventual Consistency vs. Immediate Feed Updates (Performance vs. Consistency)**
-  * *Choice:* Processing thumbnail generation and feed distribution asynchronously via a Message Queue and background workers.
-  * *Trade-off:* The uploaded photo appears instantly in the user's personal profile view, but followers may experience a short delay (a few seconds) before the photo populates into their aggregated feed timelines. This trades strict immediate consistency for high system responsiveness and high-throughput scalability.
-* **Trade-Off 2: Object Storage Cost vs. Bandwidth Optimization (Cost vs. Speed)**
-  * *Choice:* Storing both original 2 MB photos and 50 KB thumbnails separately in Object Storage and serving static assets globally via a CDN.
-  * *Trade-off:* Storing duplicated asset sizes increases long-term storage expenditures, but drastically decreases network bandwidth costs and page load latency for mobile users scrolling through image feeds.
+* **Trade-Off 1: Eventual Consistency Across Read Replicas (Performance vs. Consistency)**
+  * *Choice:* Using database read replicas combined with Redis caching and asynchronous background workers for feed updates and thumbnail processing.
+  * *Trade-off:* While write transactions commit immediately to the primary database, read replicas and Redis cache layers experience brief replication and invalidation delays. Followers may experience a short delay (a few seconds) before seeing a newly uploaded photo, trading strict immediate consistency for massive read throughput and low latency.
+* **Trade-Off 2: CPU Load of Proxying Media Through App Servers vs. Direct Uploads (Compute vs. Architecture Complexity)**
+  * *Choice:* Routing initial upload payloads through App Servers before pushing to Object Storage.
+  * *Trade-off:* Proxying binary files directly through App Servers consumes significant network bandwidth and CPU cycles for request parsing and stream handling compared to direct client-to-storage pre-signed URL uploads. However, proxying provides centralized rate-limiting, authentication enforcement, and payload validation before any data touches storage.
