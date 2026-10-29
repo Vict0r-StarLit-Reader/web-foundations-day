@@ -1,11 +1,11 @@
 # SnapShare Scaling Plan
 
 ## 1. Assumptions and Daily Active Users (DAU)
-* **Registered Users:** 10,000,000[span_5](start_span)[span_5](end_span)
-* **Activity Rate:** 10% of registered users are active daily[span_6](start_span)[span_6](end_span)
+* **Registered Users:** 10,000,000
+* **Activity Rate:** 10% of registered users are active daily.
 * **Daily Active Users (DAU):** 10,000,000 × 0.10 = **1,000,000 users**
-* **User Actions:** Each active user uploads 1 photo per day and views 50 feed pages per day[span_7](start_span)[span_7](end_span)
-* **File Sizes:** Average photo size is 2 MB; each thumbnail size is 50 KB[span_8](start_span)[span_8](end_span)
+* **User Actions:** Each active user uploads 1 photo per day and views 50 feed pages per day
+* **File Sizes:** Average photo size is 2 MB; each thumbnail size is 50 KB.
 
 ---
 
@@ -13,12 +13,12 @@
 
 ### Uploads & Feed Views per Second
 * **Seconds in a day:** 86,400 seconds
-* **Total Uploads per Day:** 1,000,000 photos[span_9](start_span)[span_9](end_span)
+* **Total Uploads per Day:** 1,000,000 photos.
   * **Average Uploads/sec:** 1,000,000 ÷ 86,400 ≈ **11.57 requests/sec**
-  * **Peak Uploads/sec (5× peak factor):** 11.57 × 5 ≈ **57.85 requests/sec**[span_10](start_span)[span_10](end_span)
-* **Total Feed Views per Day:** 1,000,000 users × 50 views = 50,000,000 views[span_11](start_span)[span_11](end_span)
+  * **Peak Uploads/sec (5× peak factor):** 11.57 × 5 ≈ **57.85 requests/sec**
+* **Total Feed Views per Day:** 1,000,000 users × 50 views = 50,000,000 views.
   * **Average Feed Views/sec:** 50,000,000 ÷ 86,400 ≈ **578.70 requests/sec**
-  * **Peak Feed Views/sec (5× peak factor):** 578.70 × 5 ≈ **2,893.50 requests/sec**[span_12](start_span)[span_12](end_span)
+  * **Peak Feed Views/sec (5× peak factor):** 578.70 × 5 ≈ **2,893.50 requests/sec**
 
 ### Annual Storage Requirements
 * **Photo Storage per Day:** 1,000,000 photos × 2 MB = 2,000,000 MB = **2 TB/day**
