@@ -85,3 +85,29 @@ To guarantee absolute data correctness and ensure two people cannot purchase the
               │         │
               │         ▼ (Async Replication)
               │    [ Read Replicas ] (Offloads event browsing & seat map queries)
+```
+### Component Explanations
+* **Global CDN / Edge:** Caches static event banners, venue layouts, and frontend assets globally to absorb heavy read spikes.
+* **API Gateway / Load Balancer:** Entry point that evenly distributes incoming user traffic and API calls across backend application instances.
+* **Virtual Waiting Room / Queue Service:** Throttles traffic during high-demand concert drops by queuing up to 200,000 peak users, allowing only controlled batches to enter the checkout flow.
+* **App Servers:** Stateless application nodes handling business logic, validation, payment orchestration, and API routing.
+* **Redis Cluster:** High-performance, in-memory cache used for real-time seat locking (with TTLs) and user session state management.
+* **Primary Relational Database:** PostgreSQL database instance handling ACID-compliant write operations, checkout transactions, and order persistence.
+* **Read Replicas:** Read-only database instances asynchronously replicated from the primary DB to handle high-volume event browsing and seat availability queries.
+
+---
+
+## 7. Architectural Trade-Offs & Single Points of Failure (SPOF)
+
+### Trade-Offs
+* **Trade-Off 1: Strong Consistency vs. Availability (CAP Theorem)**
+  * *Choice:* Strong consistency for ticket checkouts and seat locking.
+  * *Trade-off:* If the primary database experiences latency during peak ticket drops, users might experience slight checkout delays, traded off to strictly prevent double-booking seats.
+* **Trade-Off 2: Virtual Waiting Room Queue vs. Direct Access**
+  * *Choice:* Enforcing a virtual queue during major concert drops.
+  * *Trade-off:* Users must wait in line rather than getting immediate access, prioritized in favor of protecting system stability and server uptime.
+
+### Mitigating Single Points of Failure (SPOF)
+* **Load Balancers:** Deployed in active-active pairs with automated DNS failover to prevent gateway downtime.
+* **Database Layer:** Primary database configured with automated failover and multi-region read replicas to ensure high availability.
+* **App Server Scaling:** Horizontally auto-scaled container instances managed behind an automated orchestration group to handle traffic surges.
